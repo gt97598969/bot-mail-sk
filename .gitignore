@@ -1,0 +1,7 @@
+venv/
+.env
+__pycache__/
+*.pyc
+clients/
+clients_index.json
+processed_ids.json

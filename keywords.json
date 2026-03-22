@@ -1,0 +1,31 @@
+{
+  "GROUP1": {
+    "description": "Questions sur les frais → réponse auto SK",
+    "keywords": [
+      "je tam nejaky poplatok",
+      "plati sa aj nejaky poplatok",
+      "kolko sa plati",
+      "su uvas poplatky",
+      "pred prevodom penazi",
+      "plati poplatok",
+      "nejake poplatky vopred",
+      "poplatky",
+      "poplatok"
+    ]
+  },
+  "GROUP2": {
+    "description": "Intérêt / accord → réponse auto SK + formulaire",
+    "keywords": [
+      "anoo mam zaujem",
+      "ano vyhovuju mi tieto podmienky",
+      "ano suhlasim",
+      "dobry den, suhlasim",
+      "suhlasim",
+      "ano vyhovuju",
+      "mam zaujem",
+      "zaujem",
+      "ano",
+      "qno"
+    ]
+  }
+}

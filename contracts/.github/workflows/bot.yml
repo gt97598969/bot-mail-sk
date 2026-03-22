@@ -1,0 +1,33 @@
+name: Mail Bot SK
+
+on:
+  schedule:
+    # Toutes les 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:  # Permet de lancer manuellement depuis l'onglet Actions
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Mail Bot SK
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
+          SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
+          CRAFTMYPDF_KEY: ${{ secrets.CRAFTMYPDF_KEY }}
+          OLAKRED_API_KEY: ${{ secrets.OLAKRED_API_KEY }}
+        run: python auto_reply_sk.py
