@@ -2,9 +2,8 @@ name: Mail Bot SK
 
 on:
   schedule:
-    # Toutes les 10 minutes
-    - cron: '*/10 * * * *'
-  workflow_dispatch:  # Permet de lancer manuellement depuis l'onglet Actions
+    - cron: '*/10 * * * *'   # toutes les 10 minutes
+  workflow_dispatch:          # lancement manuel possible
 
 jobs:
   run-bot:
@@ -19,6 +18,18 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Restore processed_ids cache
+        uses: actions/cache/restore@v4
+        with:
+          path: processed_ids.json
+          key: processed-ids
+
+      - name: Create empty processed_ids.json if missing
+        run: |
+          if [ ! -f processed_ids.json ]; then
+            echo "[]" > processed_ids.json
+          fi
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -31,3 +42,10 @@ jobs:
           CRAFTMYPDF_KEY: ${{ secrets.CRAFTMYPDF_KEY }}
           OLAKRED_API_KEY: ${{ secrets.OLAKRED_API_KEY }}
         run: python auto_reply_sk.py
+
+      - name: Save processed_ids cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: processed_ids.json
+          key: processed-ids
