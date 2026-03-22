@@ -3,7 +3,7 @@ name: Mail Bot SK
 on:
   schedule:
     - cron: '*/10 * * * *'   # toutes les 10 minutes
-  workflow_dispatch:          # lancement manuel possible
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -35,12 +35,21 @@ jobs:
 
       - name: Run Mail Bot SK
         env:
-          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          SENDER_NAME: ${{ secrets.SENDER_NAME }}
+          SENT_FOLDER: ${{ secrets.SENT_FOLDER }}
+          CRAFTMYPDF_API_KEY: ${{ secrets.CRAFTMYPDF_API_KEY }}
+          CRAFTMYPDF_TEMPLATE_ID: ${{ secrets.CRAFTMYPDF_TEMPLATE_ID }}
           WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
-          SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
-          CRAFTMYPDF_KEY: ${{ secrets.CRAFTMYPDF_KEY }}
-          OLAKRED_API_KEY: ${{ secrets.OLAKRED_API_KEY }}
+          WHATSAPP_PHONE_ID: ${{ secrets.WHATSAPP_PHONE_ID }}
+          WHATSAPP_ADMIN_NUMBER: ${{ secrets.WHATSAPP_ADMIN_NUMBER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python auto_reply_sk.py
 
       - name: Save processed_ids cache
