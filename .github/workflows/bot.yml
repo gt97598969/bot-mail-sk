@@ -2,7 +2,7 @@ name: Mail Bot SK
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # toutes les 10 minutes
+    - cron: '*/15 * * * *'   # toutes les 15 minutes
   workflow_dispatch:
 
 jobs:
@@ -18,16 +18,39 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Restore processed_ids cache
+      - name: Restore bot state (processed_ids + clients)
         uses: actions/cache/restore@v4
         with:
-          path: processed_ids.json
-          key: processed-ids
+          path: |
+            processed_ids.json
+            clients_index.json
+            clients/
+          key: bot-state
 
-      - name: Create empty processed_ids.json if missing
+      - name: Ensure state files and folders exist
         run: |
           if [ ! -f processed_ids.json ]; then
             echo "[]" > processed_ids.json
+          fi
+          if [ ! -f clients_index.json ]; then
+            echo '{"last_id":0,"by_email":{},"by_iban":{},"by_phone":{},"used_rf":[]}' > clients_index.json
+          fi
+          mkdir -p clients
+          mkdir -p contracts
+
+      - name: Debug current state (clients + index)
+        run: |
+          echo "=== clients_index.json ==="
+          if [ -f clients_index.json ]; then
+            cat clients_index.json
+          else
+            echo "clients_index.json ABSENT"
+          fi
+          echo "=== clients dir ==="
+          if [ -d clients ]; then
+            ls -R clients
+          else
+            echo "clients/ ABSENT"
           fi
 
       - name: Install dependencies
@@ -52,9 +75,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python auto_reply_sk.py
 
-      - name: Save processed_ids cache
+      - name: Save bot state (processed_ids + clients)
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: processed_ids.json
-          key: processed-ids
+          path: |
+            processed_ids.json
+            clients_index.json
+            clients/
+          key: bot-state

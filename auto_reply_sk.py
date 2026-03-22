@@ -456,26 +456,39 @@ def find_proposal_in_sent(imap, client_email: str) -> dict:
 # TRAITEMENT CLIENT (connu OU auto-détecté)
 # ============================================================
 def handle_known_client_email(imap, msg, message_id: str,
-                               sender_email: str, clean_body: str,
-                               full_body: str,
-                               mail_id, processed_ids: set):
-    dossier   = get_or_create_dossier(sender_email)
+                              sender_email: str, clean_body: str,
+                              full_body: str,
+                              mail_id, processed_ids: set):
+    dossier = get_or_create_dossier(sender_email)
+
+    # 1) On extrait ce que le client vient d'envoyer
     extracted = extract_all(clean_body, full_body)
-    updated   = update_dossier(dossier, extracted)
+    updated = update_dossier(dossier, extracted)
 
     if message_id not in dossier["emails_recus"]:
         dossier["emails_recus"].append(message_id)
 
+    # 2) Doublons IBAN / téléphone
     dup_id = check_duplicate(
         iban=extracted.get("iban"),
         phone=extracted.get("telephone")
     )
     if dup_id and dup_id != dossier["id"]:
-        print(f"  [⚠️  DOUBLON] IBAN ou téléphone déjà dans dossier {dup_id}")
+        print(f"  [⚠️ DOUBLON] IBAN ou téléphone déjà dans dossier {dup_id}")
 
     if updated:
         dossier["statut"] = "en_cours"
 
+    # 3) 🔥 NOUVEAU : si montant/durée/mensualité manquent, on scanne Sent
+    if not is_dossier_complete(dossier):
+        proposal = find_proposal_in_sent(imap, sender_email)
+        if proposal:
+            print(f"  [AUTO-DOSSIER] 📊 Proposition trouvée dans Sent → merge.")
+            updated2 = update_dossier(dossier, proposal)
+            if updated2:
+                print("  [AUTO-DOSSIER] 🔁 Dossier mis à jour avec la proposition.")
+
+    # 4) Après merge avec la proposition, on re‑teste la complétude
     if is_dossier_complete(dossier):
         dossier["statut"] = "complet"
         save_dossier(dossier)
@@ -488,6 +501,7 @@ def handle_known_client_email(imap, msg, message_id: str,
     imap.store(mail_id, "+FLAGS", "\\Seen")
     processed_ids.add(message_id)
     print(f"  [DOSSIER] 💾 {get_dossier_summary(dossier)}")
+
 
 
 # ============================================================
@@ -627,58 +641,27 @@ def run():
                     full_body, mail_id, processed_ids
                 )
 
-            # 2) Client déjà en base
-            elif is_known_client(sender_email_addr):
-                dossier = get_or_create_dossier(sender_email_addr)
-
-                if is_signature_email(msg, clean_body, full_body):
-                    print("  [SIGNATURE] ✍️  Mail de signature détecté (client connu).")
-                    saved = save_signature_attachments(dossier, msg)
-                    if saved:
-                        dossier["statut"] = "signe"
-                        save_dossier(dossier)
-                        print(f"  [SIGNATURE] ✅ {len(saved)} fichier(s) sauvegardé(s).")
-                        print(f"  [DOSSIER] 💾 {get_dossier_summary(dossier)}")
-
-                        send_whatsapp_admin(dossier, "signe")
-                        send_reply(imap, msg, CONFIRM_SIGNATURE_REPLY)
-                        processed_ids.add(message_id)
-                        imap.store(mail_id, "+FLAGS", "\\Seen")
-                    else:
-                        print("  [SIGNATURE] ⚠️ Aucune pièce jointe exploitable.")
-                        imap.store(mail_id, "-FLAGS", "\\Seen")
-
-                else:
-                    print("  [CLIENT CONNU] 🔄 Mise à jour dossier...")
-                    handle_known_client_email(
-                        imap, msg, message_id,
-                        sender_email_addr, clean_body,
-                        full_body, mail_id, processed_ids
-                    )
-
-            # 3) Client pas reconnu, mais mail de signature (sujet Zmluva + pièce jointe)
+            # 2) Mail de signature (avec pièce jointe)
             elif is_signature_email(msg, clean_body, full_body):
-                print("  [SIGNATURE] ✍️  Mail de signature détecté (client non reconnu).")
+                print("[SIGNATURE] ✍️ Mail de signature détecté (avec pièce jointe).")
+
                 dossier = get_or_create_dossier(sender_email_addr)
-                saved = save_signature_attachments(dossier, msg)
-                if saved:
-                    dossier["statut"] = "signe"
-                    save_dossier(dossier)
-                    print(f"  [SIGNATURE] ✅ {len(saved)} fichier(s) sauvegardé(s).")
-                    print(f"  [DOSSIER] 💾 {get_dossier_summary(dossier)}")
+                handle_signature_logic(
+                    imap,
+                    msg,
+                    dossier,
+                    clean_body,
+                    full_body,
+                    processed_ids,
+                    message_id,
+                    mail_id,
+                )
 
-                    send_whatsapp_admin(dossier, "signe")
-                    send_reply(imap, msg, CONFIRM_SIGNATURE_REPLY)
-                    processed_ids.add(message_id)
-                    imap.store(mail_id, "+FLAGS", "\\Seen")
-                else:
-                    print("  [SIGNATURE] ⚠️ Aucune pièce jointe exploitable.")
-                    imap.store(mail_id, "-FLAGS", "\\Seen")
-
-            # 4) Vrai inconnu, rien de spécial
+            # 3) Vrai inconnu, rien de spécial
             else:
                 print("  [HUMAIN] 👤 Client inconnu + aucun mot-clé → NON LU.")
                 imap.store(mail_id, "-FLAGS", "\\Seen")
+
 
     save_processed(processed_ids)
     imap.logout()
@@ -692,6 +675,52 @@ def run():
     print(f"  ✅ Scan terminé — {len(dossiers)} dossier(s) | "
           f"{complets} complet(s) | {en_cours} en cours")
     print(f"  {'─'*45}\n")
+
+def handle_signature_logic(imap, msg, dossier, clean_body, full_body,
+                           processed_ids, message_id, mail_id):
+    saved = save_signature_attachments(dossier, msg)
+    if not saved:
+        print("  [SIGNATURE] ⚠️ Aucune pièce jointe exploitable.")
+        imap.store(mail_id, "-FLAGS", "\\Seen")
+        return
+
+    print(f"  [SIGNATURE] ✅ {len(saved)} fichier(s) sauvegardé(s).")
+
+    statut_actuel = dossier.get("statut", "")
+
+    # CAS 1 : contrat déjà envoyé -> contrat signé reçu -> lien OLAKRED
+    if statut_actuel == "contrat_envoye":
+        dossier["statut"] = "signe"
+        save_dossier(dossier)
+        print("  [SIGNATURE] ✅ Contrat signé reçu → envoi lien OLAKRED.")
+        print(f"  [DOSSIER] 💾 {get_dossier_summary(dossier)}")
+        send_whatsapp_admin(dossier, "signe")
+        send_reply(imap, msg, CONFIRM_SIGNATURE_REPLY)
+
+    # CAS 2 : contrat pas encore envoyé -> données + PJ -> générer contrat
+    else:
+        extracted = extract_all(clean_body, full_body)
+        update_dossier(dossier, extracted)
+
+        if is_dossier_complete(dossier):
+            dossier["statut"] = "complet"
+            save_dossier(dossier)
+            print("  [CONTRAT] 📄 Dossier complet → génération du contrat...")
+            send_whatsapp_admin(dossier, "complet")
+            try:
+                process_contract(dossier)
+                dossier["statut"] = "contrat_envoye"
+                save_dossier(dossier)
+                print("  [CONTRAT] ✅ Contrat généré et envoyé.")
+            except Exception as e:
+                print(f"  [CONTRAT] ❌ Erreur : {e}")
+        else:
+            save_dossier(dossier)
+            print("  [CONTRAT] ⏳ Données incomplètes → dossier mis à jour, en attente.")
+            print(f"  [DOSSIER] 💾 {get_dossier_summary(dossier)}")
+
+    processed_ids.add(message_id)
+    imap.store(mail_id, "+FLAGS", "\\Seen")
 
 
 if __name__ == "__main__":
