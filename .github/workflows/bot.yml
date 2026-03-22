@@ -2,7 +2,7 @@ name: Mail Bot SK
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # toutes les 15 minutes
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -18,40 +18,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Restore bot state (processed_ids + clients)
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            processed_ids.json
-            clients_index.json
-            clients/
-          key: bot-state
-
       - name: Ensure state files and folders exist
         run: |
-          if [ ! -f processed_ids.json ]; then
-            echo "[]" > processed_ids.json
-          fi
-          if [ ! -f clients_index.json ]; then
-            echo '{"last_id":0,"by_email":{},"by_iban":{},"by_phone":{},"used_rf":[]}' > clients_index.json
-          fi
+          echo "[]" > processed_ids.json
+          echo '{"last_id":0,"by_email":{},"by_iban":{},"by_phone":{},"used_rf":[]}' > clients_index.json
           mkdir -p clients
           mkdir -p contracts
 
       - name: Debug current state (clients + index)
         run: |
           echo "=== clients_index.json ==="
-          if [ -f clients_index.json ]; then
-            cat clients_index.json
-          else
-            echo "clients_index.json ABSENT"
-          fi
+          cat clients_index.json || echo "no index"
           echo "=== clients dir ==="
-          if [ -d clients ]; then
-            ls -R clients
-          else
-            echo "clients/ ABSENT"
-          fi
+          ls -R clients || echo "no clients dir"
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -74,13 +53,3 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python auto_reply_sk.py
-
-      - name: Save bot state (processed_ids + clients)
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            processed_ids.json
-            clients_index.json
-            clients/
-          key: bot-state
