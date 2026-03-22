@@ -18,10 +18,25 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Restore bot state (processed_ids + clients)
+        uses: actions/cache@v4
+        with:
+          path: |
+            processed_ids.json
+            clients_index.json
+            clients/
+          key: bot-state-${{ github.run_id }}
+          restore-keys: |
+            bot-state-
+
       - name: Ensure state files and folders exist
         run: |
-          echo "[]" > processed_ids.json
-          echo '{"last_id":0,"by_email":{},"by_iban":{},"by_phone":{},"used_rf":[]}' > clients_index.json
+          if [ ! -f processed_ids.json ]; then
+            echo "[]" > processed_ids.json
+          fi
+          if [ ! -f clients_index.json ]; then
+            echo '{"last_id":0,"by_email":{},"by_iban":{},"by_phone":{},"used_rf":[]}' > clients_index.json
+          fi
           mkdir -p clients
           mkdir -p contracts
 
