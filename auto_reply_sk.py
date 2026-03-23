@@ -525,6 +525,12 @@ def run():
     except Exception as e:
         print(f"  [ERREUR IMAP] ❌ Connexion impossible : {e}")
         return
+    
+        # 🔍 DEBUG IMAP FOLDERS
+    status, boxes = imap.list()
+    print("  [IMAP] 📂 Dossiers disponibles :")
+    for b in boxes or []:
+        print("   ", b.decode(errors="ignore"))
 
     status, messages = imap.search(None, "UNSEEN")
     if status != "OK" or not messages[0]:
